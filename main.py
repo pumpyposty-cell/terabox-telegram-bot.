@@ -788,8 +788,8 @@ if TELEGRAM_API_ID and TELEGRAM_API_HASH and os.path.exists("/usr/local/bin/tele
         f"--api-hash={TELEGRAM_API_HASH}",
         "--local",
         "--http-port=8081",
-        "--dir=/content/tg_data",
-        "--temp-dir=/content/tg_temp"
+        "--dir=/app/data/tg_data",
+        "--temp-dir=/app/data/tg_temp"
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(2)
 
