@@ -1,0 +1,14 @@
+services:
+  terabox-bot:
+    build:
+      context: .
+    container_name: terabox-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - terabox_data:/app/data
+    shm_size: "1gb"
+
+volumes:
+  terabox_data:
