@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc \
     websockify \
     x11-utils \
+      procps \
     wget \
     ca-certificates \
     unzip \
