@@ -27,6 +27,27 @@ for lock in glob.glob(os.path.join(PROFILE_DIR, "Singleton*")):
 
 os.environ["DISPLAY"] = ":99"
 
+def start_novnc():
+    env = os.environ.copy()
+    env["DISPLAY"] = ":99"
+
+    subprocess.Popen(
+        ["x11vnc", "-display", ":99", "-forever", "-shared",
+         "-rfbport", "5900", "-localhost", "-nopw"],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    subprocess.Popen(
+        ["websockify", "--web", "/usr/share/novnc/", "6080", "localhost:5900"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    time.sleep(1)
+    print("🖥️ noVNC server started on localhost:6080")
+
 def start_virtual_display():
     try:
         result = subprocess.run(
@@ -59,6 +80,7 @@ def start_virtual_display():
 async def initialize_browser():
     global pw, browser_context, page
     start_virtual_display()
+    start_novnc()
 
     pw = await async_playwright().start()
     browser_context = await pw.chromium.launch_persistent_context(
