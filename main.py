@@ -42,7 +42,10 @@ def start_novnc():
     )
 
     subprocess.Popen(
-        ["websockify", "--web", "/usr/share/novnc/", NOVNC_PORT, "localhost:5900"],
+        [
+            "websockify", "--web", "/usr/share/novnc/", "--heartbeat", "10",
+            NOVNC_PORT, "127.0.0.1:5900",
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
