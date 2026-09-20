@@ -26,6 +26,7 @@ for lock in glob.glob(os.path.join(PROFILE_DIR, "Singleton*")):
         pass
 
 os.environ["DISPLAY"] = ":99"
+TERABOX_LOGIN_URL = os.environ.get("TERABOX_LOGIN_URL", "https://www.1024tera.com/")
 
 def start_novnc():
     env = os.environ.copy()
@@ -33,7 +34,7 @@ def start_novnc():
 
     subprocess.Popen(
         ["x11vnc", "-display", ":99", "-forever", "-shared",
-         "-rfbport", "5900", "-localhost", "-nopw"],
+         "-rfbport", "5900", "-localhost", "-nopw", "-noxdamage"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -60,12 +61,28 @@ def start_virtual_display():
     except Exception:
         pass
 
-    subprocess.Popen(
+    xvfb_process = subprocess.Popen(
         ["Xvfb", ":99", "-screen", "0", "1280x720x24", "-ac"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    time.sleep(1.5)
+    for _ in range(30):
+        if xvfb_process.poll() is not None:
+            raise RuntimeError("Xvfb exited before display :99 became ready")
+        try:
+            if subprocess.run(
+                ["xdpyinfo", "-display", ":99"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode == 0:
+                break
+        except OSError as error:
+            raise RuntimeError("Unable to check Xvfb display :99") from error
+        time.sleep(0.1)
+    else:
+        xvfb_process.terminate()
+        raise RuntimeError("Xvfb display :99 did not become ready")
 
     env = os.environ.copy()
     env["DISPLAY"] = ":99"
@@ -109,7 +126,7 @@ async def initialize_browser():
     )
     await page.set_viewport_size({"width": 1280, "height": 720})
     await page.goto(
-        "https://www.terabox.app/",
+        TERABOX_LOGIN_URL,
         wait_until="domcontentloaded",
         timeout=120000,
     )
@@ -182,15 +199,14 @@ async def ensure_browser():
 
     try:
         if browser_context and not browser_context.is_closed():
-            while len(browser_context.pages) > 1:
-                p = browser_context.pages[-1]
+            active_page = browser_context.pages[0] if browser_context.pages else await browser_context.new_page()
+            for extra_page in browser_context.pages[1:]:
                 try:
-                    await p.close()
+                    await extra_page.close()
                 except Exception:
-                    break
-            worker_page = await browser_context.new_page()
-            await worker_page.set_viewport_size({"width": 1280, "height": 720})
-            return worker_page
+                    pass
+            await active_page.set_viewport_size({"width": 1280, "height": 720})
+            return active_page
     except Exception:
         pass
 
@@ -233,11 +249,10 @@ async def ensure_browser():
     ''')
 
     anchor_page = browser_context.pages[0] if browser_context.pages else await browser_context.new_page()
-    await anchor_page.goto("https://www.terabox.app/", wait_until="domcontentloaded", timeout=60000)
+    await anchor_page.goto(TERABOX_LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
 
-    worker_page = await browser_context.new_page()
-    await worker_page.set_viewport_size({"width": 1280, "height": 720})
-    return worker_page
+    await anchor_page.set_viewport_size({"width": 1280, "height": 720})
+    return anchor_page
 
 def clean_filename(filename):
     if not filename:
@@ -733,6 +748,11 @@ async def download_terabox(url, job_dir):
             context.remove_listener("download", download_handler)
         except Exception:
             pass
+        for extra_page in context.pages[1:]:
+            try:
+                await extra_page.close()
+            except Exception:
+                pass
 
 print("✅ TeraBox Downloader Engine loaded successfully!")
 
