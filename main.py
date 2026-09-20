@@ -1097,7 +1097,13 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             shutil.rmtree(job_dir, ignore_errors=True)
 
 async def main():
-    await initialize_browser()
+    if TERABOX_COOKIE:
+        # Keep cookie/API deployments light; launch Chromium only if the API fallback is needed.
+        start_virtual_display()
+        start_novnc()
+        print("🍪 Cookie mode enabled; Chromium startup deferred.")
+    else:
+        await initialize_browser()
     try:
         # Run the bot runner code by reproducing its initialization sequence.
         builder = Application.builder().token(TELEGRAM_BOT_TOKEN)
