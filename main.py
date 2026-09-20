@@ -28,6 +28,7 @@ for lock in glob.glob(os.path.join(PROFILE_DIR, "Singleton*")):
 os.environ["DISPLAY"] = ":99"
 TERABOX_LOGIN_URL = os.environ.get("TERABOX_LOGIN_URL", "https://www.1024tera.com/")
 NOVNC_PORT = os.environ.get("PORT", "6080")
+TERABOX_COOKIE = os.environ.get("TERABOX_COOKIE", "").strip()
 
 def start_novnc():
     env = os.environ.copy()
@@ -428,6 +429,66 @@ def download_signed_file(signed_url, target_dir, base_filename, cookies=None, re
     session.close()
     return output_path, final_filename
 
+def download_with_cookie_api(url, target_dir):
+    if not TERABOX_COOKIE:
+        return None
+
+    shorturl_match = re.search(r"/s/([^/?#]+)", url)
+    if not shorturl_match:
+        raise RuntimeError("Could not extract the TeraBox share code from the link.")
+
+    shorturl = shorturl_match.group(1)
+    session = requests.Session()
+    session.headers.update({
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cookie": TERABOX_COOKIE,
+        "Origin": "https://www.terabox.app",
+        "Referer": "https://www.terabox.app/",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+    })
+
+    response = session.get(
+        "https://www.terabox.app/share/list",
+        params={
+            "app_id": "250528",
+            "web": "1",
+            "channel": "dubox",
+            "clienttype": "0",
+            "page": "1",
+            "num": "20",
+            "by": "name",
+            "order": "asc",
+            "shorturl": shorturl,
+            "root": "1,",
+        },
+        timeout=(20, 60),
+    )
+    data = response.json()
+    if data.get("errno") or not data.get("list"):
+        raise RuntimeError(data.get("errmsg", "Cookie API returned no files."))
+
+    item = data["list"][0]
+    direct_url = item.get("dlink")
+    if not direct_url:
+        raise RuntimeError("Cookie API returned file metadata without a download link.")
+
+    cookies = []
+    for cookie_part in TERABOX_COOKIE.split(";"):
+        if "=" not in cookie_part:
+            continue
+        name, value = cookie_part.strip().split("=", 1)
+        if name and value:
+            cookies.append({"name": name, "value": value, "domain": ".terabox.app", "path": "/"})
+    path, filename = download_signed_file(
+        direct_url,
+        target_dir,
+        item.get("server_filename") or "terabox_download",
+        cookies=cookies,
+        referer=url,
+    )
+    return {"path": path, "filename": filename, "size": os.path.getsize(path)}
+
 def rescue_recent_browser_download(target_dir, base_filename, min_size=2048):
     dpath = BROWSER_DOWNLOADS_DIR
     if not os.path.exists(dpath):
@@ -517,6 +578,16 @@ async def save_downloaded_result(captured, job_dir, dom_filename, cookies, url):
 
 async def download_terabox(url, job_dir):
     os.makedirs(job_dir, exist_ok=True)
+    if TERABOX_COOKIE:
+        try:
+            print("🍪 Trying cookie-based TeraBox download...")
+            direct_result = await asyncio.to_thread(download_with_cookie_api, url, job_dir)
+            if direct_result:
+                print(f"✅ Cookie-based download completed: {direct_result['filename']}")
+                return [direct_result]
+        except Exception as cookie_error:
+            print(f"⚠️ Cookie API unavailable ({cookie_error}); falling back to browser.")
+
     active_page = await ensure_browser()
     context = active_page.context
     captured = {}
