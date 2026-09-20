@@ -448,6 +448,21 @@ def download_with_cookie_api(url, target_dir):
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
     })
 
+    response = session.get(url, timeout=(20, 60), allow_redirects=True)
+    response.raise_for_status()
+    final_url = response.url
+    final_query = parse_qs(urlparse(final_url).query)
+    shorturl = final_query.get("surl", [shorturl])[0]
+
+    page_response = session.get(final_url, timeout=(20, 60))
+    page_response.raise_for_status()
+    page_html = page_response.text
+    js_token_match = re.search(r"fn%28%22([^%]+)%22%29", page_html)
+    logid_match = re.search(r"dp-logid=([^&\"']+)", page_html)
+    bdstoken_match = re.search(r'bdstoken\\?":\\?"([^"\\]+)', page_html)
+    if not js_token_match or not logid_match or not bdstoken_match:
+        raise RuntimeError("TeraBox page did not provide the required API tokens.")
+
     response = session.get(
         "https://www.terabox.app/share/list",
         params={
@@ -455,10 +470,13 @@ def download_with_cookie_api(url, target_dir):
             "web": "1",
             "channel": "dubox",
             "clienttype": "0",
+            "jsToken": js_token_match.group(1),
+            "dp-logid": logid_match.group(1),
             "page": "1",
             "num": "20",
             "by": "name",
             "order": "asc",
+            "site_referer": final_url,
             "shorturl": shorturl,
             "root": "1,",
         },
