@@ -27,6 +27,7 @@ for lock in glob.glob(os.path.join(PROFILE_DIR, "Singleton*")):
 
 os.environ["DISPLAY"] = ":99"
 TERABOX_LOGIN_URL = os.environ.get("TERABOX_LOGIN_URL", "https://www.1024tera.com/")
+NOVNC_PORT = os.environ.get("PORT", "6080")
 
 def start_novnc():
     env = os.environ.copy()
@@ -41,13 +42,13 @@ def start_novnc():
     )
 
     subprocess.Popen(
-        ["websockify", "--web", "/usr/share/novnc/", "6080", "localhost:5900"],
+        ["websockify", "--web", "/usr/share/novnc/", NOVNC_PORT, "localhost:5900"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     time.sleep(1)
-    print("🖥️ noVNC server started on localhost:6080")
+    print(f"🖥️ noVNC server started on port {NOVNC_PORT}")
 
 def start_virtual_display():
     try:
