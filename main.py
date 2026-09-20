@@ -827,8 +827,7 @@ async def download_terabox(url, job_dir):
         if not captured.get("url") and not captured.get("download"):
             raise RuntimeError(
                 "TeraBox download was not detected.\n"
-                "This usually means TeraBox requires solving a CAPTCHA or logging in.\n"
-                "👉 Please open the noVNC URL from Cell 1 and check the browser screen."
+                "This usually means the cookie requires verification or has expired."
             )
 
         # 6. Retrieve file via Multi-Strategy Pipeline
@@ -1068,7 +1067,13 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-            tip = "💡 *Tip:* Check the attached screenshot to see what TeraBox showed!" if has_screenshot else "💡 *Tip:* If TeraBox requires login or verification, open the noVNC URL from Cell 1."
+            tip = (
+                "💡 *Tip:* Check the attached screenshot to see what TeraBox showed!"
+                if has_screenshot
+                else "💡 *Tip:* Refresh TERABOX_COOKIE with a cookie captured from a successful download request."
+                if TERABOX_COOKIE
+                else "💡 *Tip:* Open the noVNC browser and complete TeraBox verification."
+            )
             err_caption = (
                 f"❌ **Download Failed**\n\n"
                 f"**Error:** `{type(e).__name__}`\n"
@@ -1098,10 +1103,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     if TERABOX_COOKIE:
-        # Keep cookie/API deployments light; launch Chromium only if the API fallback is needed.
-        start_virtual_display()
-        start_novnc()
-        print("🍪 Cookie mode enabled; Chromium startup deferred.")
+        print("🍪 Cookie mode enabled; browser and noVNC disabled.")
     else:
         await initialize_browser()
     try:
